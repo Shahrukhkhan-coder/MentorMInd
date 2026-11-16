@@ -1,0 +1,15 @@
+{
+  "name": "MentorMind",
+  "description": "An AI-powered multi-subject smart tutor that adapts to your learning style, generates personalized lesson plans, and identifies weaknesses to help students excel.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API",
+    "AI Tutoring",
+    "Personalized Learning",
+    "Quiz Generation",
+    "Skill Tracking"
+  ]
+}

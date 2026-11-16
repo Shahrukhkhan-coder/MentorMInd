@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores student profile data and preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "grade": { "type": "string" },
+        "subjects": { "type": "array", "items": { "type": "string" } },
+        "goals": { "type": "string" },
+        "learningMode": { "type": "string", "enum": ["text", "voice", "video"] },
+        "studyFrequency": { "type": "string" },
+        "streak": { "type": "number" },
+        "totalLessons": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "grade"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "Represents a generated learning lesson.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "date": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "subject", "grade", "status"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Stores generated quizzes and student responses.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "type": { "type": "string", "enum": ["daily", "weekly", "monthly"] },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "options": { "type": "array", "items": { "type": "string" } },
+              "correctAnswer": { "type": "string" },
+              "explanation": { "type": "string" }
+            }
+          }
+        },
+        "score": { "type": "number" },
+        "completed": { "type": "boolean" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["lessonId", "type", "questions"]
+    },
+    "Performance": {
+      "title": "Performance Tracking",
+      "description": "Tracks student weaknesses and concept mastery.",
+      "type": "object",
+      "properties": {
+        "subject": { "type": "string" },
+        "weakConcepts": { "type": "array", "items": { "type": "string" } },
+        "masteredConcepts": { "type": "array", "items": { "type": "string" } },
+        "averageScore": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subject"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Main user document"
+    },
+    "/users/{userId}/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Lessons generated for the user"
+    },
+    "/users/{userId}/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Quizzes associated with lessons"
+    },
+    "/users/{userId}/performance/{subjectId}": {
+      "schema": "Performance",
+      "description": "Skill tracking per subject"
+    }
+  }
+}

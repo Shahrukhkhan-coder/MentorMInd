@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { 
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- User Rules ---
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.userId == request.auth.uid 
+          && data.email is string && data.email.size() <= 100
+          && data.grade is string && data.grade.size() <= 50
+          && data.subjects is list && data.subjects.size() <= 20
+          && data.goals is string && data.goals.size() <= 1000
+          && (data.learningMode == 'text' || data.learningMode == 'voice' || data.learningMode == 'video')
+          && data.totalLessons is number;
+      }
+
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && (
+        // Validation check for identity spoofing and basic types
+        isValidUser(incoming()) &&
+        // Strict field change limit
+        incoming().diff(existing()).affectedKeys().hasOnly(['grade', 'subjects', 'goals', 'learningMode', 'studyFrequency', 'streak', 'lastActivityDate', 'totalLessons', 'recentTopics', 'updatedAt'])
+      );
+    }
+
+    // --- Lesson Rules ---
+    match /users/{userId}/lessons/{lessonId} {
+      function isValidLesson(data) {
+        return data.title is string && data.title.size() <= 200
+          && data.content is string && data.content.size() <= 50000
+          && data.subject is string && data.subject.size() <= 100
+          && data.grade is string && data.grade.size() <= 50
+          && (data.difficulty == 'Easy' || data.difficulty == 'Medium' || data.difficulty == 'Hard')
+          && (data.mode == 'text' || data.mode == 'voice' || data.mode == 'video')
+          && (data.status == 'pending' || data.status == 'completed');
+      }
+
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidLesson(incoming());
+      allow update: if isOwner(userId) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+        || (isValidLesson(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'status', 'difficulty', 'date', 'updatedAt']))
+      );
+      allow delete: if isOwner(userId);
+    }
+
+    // --- Quiz Rules ---
+    match /users/{userId}/quizzes/{quizId} {
+      function isValidQuiz(data) {
+        return data.lessonId is string && data.lessonId.size() <= 128
+          && data.questions is list && data.questions.size() <= 50
+          && (data.type == 'daily' || data.type == 'weekly' || data.type == 'monthly' || data.type == 'lesson');
+      }
+
+      allow list, get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidQuiz(incoming());
+      allow update: if isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['score', 'completed', 'completedAt']);
+    }
+
+    // --- Performance Rules ---
+    match /users/{userId}/performance/{subjectId} {
+      function isValidPerformance(data) {
+        return data.subject is string && data.subject.size() <= 100
+          && data.weakConcepts is list && data.weakConcepts.size() <= 100
+          && data.masteredConcepts is list && data.masteredConcepts.size() <= 100
+          && data.averageScore is number
+          && data.lastUpdated is string;
+      }
+
+      allow list, get: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidPerformance(incoming());
+    }
+
+    // --- Support Rules ---
+    match /users/{userId}/support_tickets/{ticketId} {
+      function isValidTicket(data) {
+        return data.message is string && data.message.size() <= 2000
+          && (data.status == 'open' || data.status == 'closed')
+          && data.createdAt is string;
+      }
+
+      allow create: if isOwner(userId) && isValidTicket(incoming());
+      allow list, get: if isOwner(userId);
+    }
+
+    // --- Feedback Rules ---
+    match /feedback/{feedbackId} {
+      function isValidFeedback(data) {
+        return data.userId == request.auth.uid
+          && data.rating is number && data.rating >= 1 && data.rating <= 5
+          && data.feedback is string && data.feedback.size() <= 5000
+          && data.createdAt is string;
+      }
+      allow create: if isSignedIn() && isValidFeedback(incoming());
+    }
+  }
+}
