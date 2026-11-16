@@ -30,13 +30,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      if (u) {
-        const p = await dbService.getUserProfile(u.uid);
-        setProfile(p);
-      } else {
+      try {
+        if (u) {
+          const p = await dbService.getUserProfile(u.uid);
+          setProfile(p);
+        } else {
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error('Failed to load user profile:', err);
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
