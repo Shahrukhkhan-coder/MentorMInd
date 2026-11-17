@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Sidebar } from './components/Navigation';
 import { Dashboard } from './views/Dashboard';
@@ -11,15 +11,29 @@ import { ProgressView } from './views/ProgressView';
 import { SettingsView } from './views/SettingsView';
 import { DocumentationView } from './views/DocumentationView';
 import { QuizzesView } from './views/QuizzesView';
+import { TeacherDashboard } from './views/TeacherDashboard';
+import { AdminDashboard } from './views/AdminDashboard';
+import { TeacherLearningView } from './views/TeacherLearningView';
+import { CommunityView } from './views/CommunityView';
 import { Toaster } from 'sonner';
 import { Lesson, Quiz } from './types';
 import { dbService } from './services/dbService';
 
 function AuthenticatedApp() {
-  const { profile, user, loading } = useAuth();
+  const { profile, user, loading, activePortal } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+
+  useEffect(() => {
+    if (activePortal === 'admin') {
+      setCurrentView('admin-home');
+    } else if (activePortal === 'teacher') {
+      setCurrentView('teacher-home');
+    } else {
+      setCurrentView('dashboard');
+    }
+  }, [activePortal]);
 
   if (loading) {
     return (
@@ -34,7 +48,7 @@ function AuthenticatedApp() {
   }
 
   if (!profile) {
-    return <Onboarding onComplete={() => setCurrentView('dashboard')} />;
+    return <Onboarding onComplete={() => setCurrentView(activePortal === 'admin' ? 'admin-home' : activePortal === 'teacher' ? 'teacher-home' : 'dashboard')} />;
   }
 
   const handleStartLesson = (lesson: Lesson) => {
@@ -43,13 +57,10 @@ function AuthenticatedApp() {
   };
 
   const handleStartQuiz = async (quizId: string) => {
-    // Try to find it in already fetched results or fetch by ID
     const quizzes = await dbService.getQuizzes(user.uid);
     let quiz = quizzes.find(q => q.id === quizId);
     
     if (!quiz) {
-      // Direct fetch fallback
-      const path = `users/${user.uid}/quizzes/${quizId}`;
       const snap = await dbService.getQuiz(user.uid, quizId);
       if (snap) quiz = snap;
     }
@@ -61,9 +72,23 @@ function AuthenticatedApp() {
   };
 
   const renderView = () => {
+    if (currentView === 'community') return <CommunityView />;
+    if (currentView === 'settings') return <SettingsView />;
+    if (currentView === 'help') return <DocumentationView />;
+
+    if (activePortal === 'admin') {
+      return <AdminDashboard />;
+    }
+
+    if (activePortal === 'teacher') {
+      return <TeacherDashboard />;
+    }
+
     switch (currentView) {
       case 'dashboard':
         return <Dashboard onStartLesson={handleStartLesson} onSetView={setCurrentView} />;
+      case 'teacher-class':
+        return <TeacherLearningView onSwitchToAI={() => setCurrentView('dashboard')} />;
       case 'lessons':
         return <LessonsList onSelectLesson={handleStartLesson} />;
       case 'quizzes':
@@ -90,13 +115,9 @@ function AuthenticatedApp() {
           />
         ) : null;
       case 'progress':
-          return <ProgressView />;
+        return <ProgressView />;
       case 'switch-subjects':
         return <SettingsView subjectsOnly onBack={() => setCurrentView('dashboard')} />;
-      case 'settings':
-        return <SettingsView />;
-      case 'help':
-        return <DocumentationView />;
       default:
         return <Dashboard onStartLesson={handleStartLesson} onSetView={setCurrentView} />;
     }

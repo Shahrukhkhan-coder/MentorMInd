@@ -2,9 +2,20 @@ export type UserGrade = 'Elementary' | 'Middle School' | 'High School' | 'Colleg
 
 export type LearningMode = 'text' | 'voice' | 'video';
 
+export type UserRole = 'student' | 'teacher' | 'admin';
+
+export type TeacherStatus = 'pending' | 'approved' | 'rejected';
+
 export interface UserProfile {
   userId: string;
   email: string;
+  displayName?: string;
+  role?: UserRole;
+  teacherStatus?: TeacherStatus;
+  bio?: string;
+  classCode?: string;
+  teacherId?: string;
+  savedPostIds?: string[];
   grade: UserGrade;
   subjects: string[];
   goals: string;
@@ -16,6 +27,115 @@ export interface UserProfile {
   recentTopics: { subject: string; topic: string; date: string }[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TeacherDirectoryEntry {
+  teacherId: string;
+  displayName: string;
+  subjects: string[];
+  bio: string;
+  classCode: string;
+  approved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnrollmentRecord {
+  id: string;
+  teacherId: string;
+  studentId: string;
+  studentName: string;
+  studentGrade: UserGrade;
+  studentSubjects: string[];
+  teacherName: string;
+  status: 'active' | 'inactive';
+  streak: number;
+  totalLessons: number;
+  averageScore: number;
+  weakConcepts: string[];
+  masteredConcepts: string[];
+  updatedAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  message: string;
+  status: 'open' | 'closed';
+  createdAt: string;
+}
+
+export interface FeedbackItem {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  rating: number;
+  feedback: string;
+  createdAt: string;
+}
+
+export interface TeacherLesson {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  title: string;
+  subject: string;
+  grade: UserGrade;
+  content: string;
+  meetingUrl?: string;
+  scheduledAt?: string;
+  status: 'published' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeacherDoubt {
+  id: string;
+  studentId: string;
+  studentName: string;
+  teacherId: string;
+  teacherName: string;
+  subject: string;
+  topic: string;
+  question: string;
+  reply?: string;
+  status: 'open' | 'answered';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CommunityPostType = 'note' | 'resource' | 'question';
+
+export interface CommunityPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  postType: CommunityPostType;
+  title: string;
+  subject: string;
+  grade: UserGrade;
+  content: string;
+  resourceUrl?: string;
+  attachmentFileId?: string;
+  attachmentName?: string;
+  attachmentSize?: number;
+  upvoterIds: string[];
+  commentsCount: number;
+  status: 'published' | 'hidden';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  content: string;
+  createdAt: string;
 }
 
 export interface Lesson {

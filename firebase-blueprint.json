@@ -2,22 +2,176 @@
   "entities": {
     "User": {
       "title": "User Profile",
-      "description": "Stores student profile data and preferences.",
+      "description": "Stores user profile data, role, and learning preferences.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
         "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher", "admin"] },
+        "teacherStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "bio": { "type": "string" },
+        "classCode": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "savedPostIds": { "type": "array", "items": { "type": "string" } },
         "grade": { "type": "string" },
         "subjects": { "type": "array", "items": { "type": "string" } },
         "goals": { "type": "string" },
         "learningMode": { "type": "string", "enum": ["text", "voice", "video"] },
         "studyFrequency": { "type": "string" },
         "streak": { "type": "number" },
+        "lastActivityDate": { "type": "string" },
         "totalLessons": { "type": "number" },
+        "recentTopics": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "email", "grade"]
+    },
+    "TeacherDirectory": {
+      "title": "Teacher Directory",
+      "description": "Non-PII public directory of approved teachers and their class codes.",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "subjects": { "type": "array", "items": { "type": "string" } },
+        "bio": { "type": "string" },
+        "classCode": { "type": "string" },
+        "approved": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "displayName", "subjects", "classCode", "approved"]
+    },
+    "Enrollment": {
+      "title": "Student-Teacher Enrollment",
+      "description": "Links a student to a teacher and mirrors academic progress for teacher monitoring without exposing PII.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentGrade": { "type": "string" },
+        "studentSubjects": { "type": "array", "items": { "type": "string" } },
+        "teacherName": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "streak": { "type": "number" },
+        "totalLessons": { "type": "number" },
+        "averageScore": { "type": "number" },
+        "weakConcepts": { "type": "array", "items": { "type": "string" } },
+        "masteredConcepts": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "studentId", "studentName", "studentGrade", "status"]
+    },
+    "TeacherLesson": {
+      "title": "Teacher Lesson",
+      "description": "Lessons and optional live class session details published by an approved teacher.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade": { "type": "string" },
+        "content": { "type": "string" },
+        "meetingUrl": { "type": "string" },
+        "scheduledAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["published", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "teacherId", "teacherName", "title", "subject", "grade", "content", "status", "createdAt", "updatedAt"]
+    },
+    "TeacherDoubt": {
+      "title": "Teacher Doubt",
+      "description": "Direct student question to their enrolled human teacher and teacher reply.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "subject": { "type": "string" },
+        "topic": { "type": "string" },
+        "question": { "type": "string" },
+        "reply": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "answered"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "studentName", "teacherId", "teacherName", "subject", "topic", "question", "status", "createdAt", "updatedAt"]
+    },
+    "CommunityPost": {
+      "title": "Community Knowledge Post",
+      "description": "Shared study notes, curated resources, and Q&A discussions across students and teachers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRole": { "type": "string", "enum": ["student", "teacher", "admin"] },
+        "postType": { "type": "string", "enum": ["note", "resource", "question"] },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade": { "type": "string" },
+        "content": { "type": "string" },
+        "resourceUrl": { "type": "string" },
+        "attachmentFileId": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "attachmentSize": { "type": "number" },
+        "upvoterIds": { "type": "array", "items": { "type": "string" } },
+        "commentsCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["published", "hidden"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "authorName", "authorRole", "postType", "title", "subject", "grade", "content", "upvoterIds", "commentsCount", "status", "createdAt", "updatedAt"]
+    },
+    "CommunityFile": {
+      "title": "Community PDF Attachment Metadata",
+      "description": "Metadata for PDF files attached to community posts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uploaderId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "mimeType": { "type": "string", "enum": ["application/pdf"] },
+        "sizeBytes": { "type": "number" },
+        "chunkCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uploaderId", "fileName", "mimeType", "sizeBytes", "chunkCount", "createdAt"]
+    },
+    "CommunityFileChunk": {
+      "title": "Community PDF File Chunk",
+      "description": "Base64 chunk of an uploaded community PDF attachment.",
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string" },
+        "index": { "type": "number" },
+        "data": { "type": "string" }
+      },
+      "required": ["fileId", "index", "data"]
+    },
+    "CommunityComment": {
+      "title": "Community Comment",
+      "description": "Replies and discussions on a community post.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRole": { "type": "string", "enum": ["student", "teacher", "admin"] },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "postId", "authorId", "authorName", "authorRole", "content", "createdAt"]
     },
     "Lesson": {
       "title": "Lesson",
@@ -30,6 +184,7 @@
         "subject": { "type": "string" },
         "grade": { "type": "string" },
         "difficulty": { "type": "string" },
+        "mode": { "type": "string", "enum": ["text", "voice", "video"] },
         "status": { "type": "string", "enum": ["pending", "completed"] },
         "date": { "type": "string", "format": "date" },
         "createdAt": { "type": "string", "format": "date-time" }
@@ -43,7 +198,7 @@
       "properties": {
         "id": { "type": "string" },
         "lessonId": { "type": "string" },
-        "type": { "type": "string", "enum": ["daily", "weekly", "monthly"] },
+        "type": { "type": "string", "enum": ["daily", "weekly", "monthly", "lesson"] },
         "questions": {
           "type": "array",
           "items": {
@@ -74,12 +229,37 @@
         "lastUpdated": { "type": "string", "format": "date-time" }
       },
       "required": ["subject"]
+    },
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "Student or teacher support requests.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "closed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "message", "status", "createdAt"]
+    },
+    "Feedback": {
+      "title": "App Feedback",
+      "description": "Ratings and feedback submitted by users.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "rating": { "type": "number" },
+        "feedback": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "rating", "feedback", "createdAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "Main user document"
+      "description": "Main user document with PII isolated to owner and admin"
     },
     "/users/{userId}/lessons/{lessonId}": {
       "schema": "Lesson",
@@ -92,6 +272,50 @@
     "/users/{userId}/performance/{subjectId}": {
       "schema": "Performance",
       "description": "Skill tracking per subject"
+    },
+    "/users/{userId}/support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Per-user support tickets"
+    },
+    "/teacher_directory/{teacherId}": {
+      "schema": "TeacherDirectory",
+      "description": "Non-PII directory of approved teachers"
+    },
+    "/enrollments/{enrollmentId}": {
+      "schema": "Enrollment",
+      "description": "Student-to-teacher enrollment and academic progress summary"
+    },
+    "/teacher_lessons/{lessonId}": {
+      "schema": "TeacherLesson",
+      "description": "Lessons and live session details created by teachers"
+    },
+    "/teacher_doubts/{doubtId}": {
+      "schema": "TeacherDoubt",
+      "description": "Direct student doubts sent to enrolled teachers"
+    },
+    "/community_posts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Shared community notes, resources, and Q&A"
+    },
+    "/community_posts/{postId}/comments/{commentId}": {
+      "schema": "CommunityComment",
+      "description": "Comments on community posts"
+    },
+    "/community_files/{fileId}": {
+      "schema": "CommunityFile",
+      "description": "PDF attachment metadata for community posts"
+    },
+    "/community_files/{fileId}/chunks/{chunkIndex}": {
+      "schema": "CommunityFileChunk",
+      "description": "Chunked base64 content of uploaded PDF attachments"
+    },
+    "/support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Global support tickets queue for admin desk"
+    },
+    "/feedback/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "User feedback submissions"
     }
   }
 }

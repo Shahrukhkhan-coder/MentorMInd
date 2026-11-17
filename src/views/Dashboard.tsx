@@ -18,7 +18,8 @@ import {
   ChevronDown,
   FileText,
   Video,
-  Headphones
+  Headphones,
+  Users
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -36,6 +37,7 @@ import { Lesson, PerformanceRecord } from '../types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { DoubtModal } from '../components/DoubtModal';
+import { ConnectTeacherCard } from '../components/ConnectTeacherCard';
 
 const SUBJECT_PLACEHOLDERS: Record<string, string> = {
   'Math': 'e.g. Algebra, Calculus, Trigonometry...',
@@ -221,6 +223,23 @@ export function Dashboard({ onStartLesson, onSetView }: {
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Welcome back, {user?.displayName?.split(' ')[0]}!</h2>
         </div>
         <div className="flex flex-wrap items-center gap-3 relative z-10 lg:mt-4">
+          <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+            <button
+              type="button"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm flex items-center gap-1.5"
+            >
+              <Sparkles size={14} />
+              Self-Study (AI)
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetView('teacher-class')}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 transition-all"
+            >
+              <Users size={14} />
+              With My Teacher
+            </button>
+          </div>
           <button 
             type="button"
             onClick={() => onSetView('switch-subjects')}
@@ -524,6 +543,8 @@ export function Dashboard({ onStartLesson, onSetView }: {
 
         </div>
       </div>
+
+      <ConnectTeacherCard />
 
       {activeDoubt && (
         <DoubtModal 

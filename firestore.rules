@@ -7,34 +7,328 @@ service cloud.firestore {
     }
 
     // --- Helpers ---
-    function isSignedIn() { 
-      return request.auth != null && request.auth.token.email_verified == true; 
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
     }
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'shah.rukh1122112211@gmail.com';
+    }
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
 
     // --- User Rules ---
     match /users/{userId} {
       function isValidUser(data) {
-        return data.userId == request.auth.uid 
+        return data.keys().hasAll(['userId', 'email', 'grade', 'subjects', 'goals', 'learningMode', 'totalLessons'])
+          && data.keys().hasOnly([
+            'userId', 'email', 'displayName', 'role', 'teacherStatus', 'bio', 'classCode',
+            'teacherId', 'savedPostIds', 'grade', 'subjects', 'goals', 'learningMode', 'studyFrequency',
+            'streak', 'lastActivityDate', 'totalLessons', 'recentTopics', 'createdAt', 'updatedAt'
+          ])
+          && data.userId == userId
           && data.email is string && data.email.size() <= 100
           && data.grade is string && data.grade.size() <= 50
           && data.subjects is list && data.subjects.size() <= 20
           && data.goals is string && data.goals.size() <= 1000
           && (data.learningMode == 'text' || data.learningMode == 'voice' || data.learningMode == 'video')
-          && data.totalLessons is number;
+          && data.totalLessons is number
+          && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+          && (!('role' in data) || (data.role == 'student' || data.role == 'teacher' || data.role == 'admin'))
+          && (!('teacherStatus' in data) || (data.teacherStatus == 'pending' || data.teacherStatus == 'approved' || data.teacherStatus == 'rejected'))
+          && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
+          && (!('classCode' in data) || (data.classCode is string && data.classCode.size() <= 20))
+          && (!('teacherId' in data) || (data.teacherId is string && data.teacherId.size() <= 128))
+          && (!('savedPostIds' in data) || (data.savedPostIds is list && data.savedPostIds.size() <= 100));
       }
 
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && (
-        // Validation check for identity spoofing and basic types
-        isValidUser(incoming()) &&
-        // Strict field change limit
-        incoming().diff(existing()).affectedKeys().hasOnly(['grade', 'subjects', 'goals', 'learningMode', 'studyFrequency', 'streak', 'lastActivityDate', 'totalLessons', 'recentTopics', 'updatedAt'])
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (
+        isAdmin() ||
+        !('role' in incoming()) ||
+        incoming().role == 'student' ||
+        (incoming().role == 'teacher' && incoming().teacherStatus == 'pending')
       );
+      allow update: if isValidId(userId) && isValidUser(incoming())
+        && incoming().userId == existing().userId
+        && incoming().email == existing().email
+        && (!('createdAt' in existing()) || incoming().createdAt == existing().createdAt)
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'teacherStatus', 'classCode', 'teacherId', 'updatedAt']))
+          || (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'bio', 'grade', 'subjects', 'goals', 'learningMode', 'studyFrequency', 'streak', 'lastActivityDate', 'totalLessons', 'recentTopics', 'teacherId', 'savedPostIds', 'updatedAt']))
+        );
+    }
+
+    // --- Teacher Directory Rules ---
+    match /teacher_directory/{teacherId} {
+      function isValidTeacherDirectory(data) {
+        return data.keys().hasAll(['teacherId', 'displayName', 'subjects', 'bio', 'classCode', 'approved', 'createdAt', 'updatedAt'])
+          && data.keys().hasOnly(['teacherId', 'displayName', 'subjects', 'bio', 'classCode', 'approved', 'createdAt', 'updatedAt'])
+          && data.teacherId == teacherId
+          && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 120
+          && data.subjects is list && data.subjects.size() <= 20
+          && data.bio is string && data.bio.size() <= 1000
+          && data.classCode is string && data.classCode.size() >= 4 && data.classCode.size() <= 20
+          && data.approved is bool
+          && data.createdAt is string && data.createdAt.size() <= 64
+          && data.updatedAt is string && data.updatedAt.size() <= 64;
+      }
+
+      allow get: if isValidId(teacherId) && isSignedIn() && (existing().approved == true || isOwner(teacherId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.approved == true || isAdmin());
+      allow create: if isValidId(teacherId) && isAdmin() && isValidTeacherDirectory(incoming());
+      allow update: if isValidId(teacherId) && isValidTeacherDirectory(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin()
+          || (isOwner(teacherId) && existing().approved == true && incoming().approved == existing().approved && incoming().classCode == existing().classCode && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'subjects', 'bio', 'updatedAt']))
+        );
+      allow delete: if isValidId(teacherId) && isAdmin();
+    }
+
+    // --- Enrollment Rules ---
+    match /enrollments/{enrollmentId} {
+      function isValidEnrollment(data) {
+        return data.keys().hasAll(['id', 'teacherId', 'studentId', 'studentName', 'studentGrade', 'studentSubjects', 'teacherName', 'status', 'streak', 'totalLessons', 'averageScore', 'weakConcepts', 'masteredConcepts', 'updatedAt'])
+          && data.keys().hasOnly(['id', 'teacherId', 'studentId', 'studentName', 'studentGrade', 'studentSubjects', 'teacherName', 'status', 'streak', 'totalLessons', 'averageScore', 'weakConcepts', 'masteredConcepts', 'updatedAt'])
+          && data.id == enrollmentId
+          && isValidId(data.teacherId)
+          && isValidId(data.studentId)
+          && data.studentName is string && data.studentName.size() > 0 && data.studentName.size() <= 120
+          && data.studentGrade is string && data.studentGrade.size() <= 50
+          && data.studentSubjects is list && data.studentSubjects.size() <= 20
+          && data.teacherName is string && data.teacherName.size() <= 120
+          && (data.status == 'active' || data.status == 'inactive')
+          && data.streak is number
+          && data.totalLessons is number
+          && data.averageScore is number
+          && data.weakConcepts is list && data.weakConcepts.size() <= 100
+          && data.masteredConcepts is list && data.masteredConcepts.size() <= 100
+          && data.updatedAt is string && data.updatedAt.size() <= 64;
+      }
+
+      allow get: if isValidId(enrollmentId) && isSignedIn() && (existing().studentId == request.auth.uid || existing().teacherId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.teacherId == request.auth.uid || isAdmin());
+      allow create: if isValidId(enrollmentId) && isSignedIn() && isValidEnrollment(incoming()) && (
+        isAdmin()
+        || (
+          incoming().studentId == request.auth.uid
+          && enrollmentId == incoming().teacherId + '_' + request.auth.uid
+          && exists(/databases/$(database)/documents/teacher_directory/$(incoming().teacherId))
+          && get(/databases/$(database)/documents/teacher_directory/$(incoming().teacherId)).data.approved == true
+        )
+      );
+      allow update: if isValidId(enrollmentId) && isSignedIn() && isValidEnrollment(incoming())
+        && incoming().studentId == existing().studentId
+        && incoming().teacherId == existing().teacherId
+        && (
+          isAdmin()
+          || (existing().studentId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['studentName', 'studentGrade', 'studentSubjects', 'status', 'streak', 'totalLessons', 'averageScore', 'weakConcepts', 'masteredConcepts', 'updatedAt']))
+        );
+      allow delete: if isValidId(enrollmentId) && isSignedIn() && (existing().studentId == request.auth.uid || isAdmin());
+    }
+
+    // --- Teacher Lessons Rules (Phase 2) ---
+    match /teacher_lessons/{lessonId} {
+      function isValidTeacherLesson(data) {
+        return data.keys().hasAll(['id', 'teacherId', 'teacherName', 'title', 'subject', 'grade', 'content', 'status', 'createdAt', 'updatedAt'])
+          && data.keys().hasOnly(['id', 'teacherId', 'teacherName', 'title', 'subject', 'grade', 'content', 'meetingUrl', 'scheduledAt', 'status', 'createdAt', 'updatedAt'])
+          && data.id == lessonId
+          && isValidId(data.teacherId)
+          && data.teacherName is string && data.teacherName.size() > 0 && data.teacherName.size() <= 120
+          && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+          && data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100
+          && data.grade is string && data.grade.size() > 0 && data.grade.size() <= 50
+          && data.content is string && data.content.size() > 0 && data.content.size() <= 50000
+          && (!('meetingUrl' in data) || (data.meetingUrl is string && data.meetingUrl.size() <= 500))
+          && (!('scheduledAt' in data) || (data.scheduledAt is string && data.scheduledAt.size() <= 64))
+          && (data.status == 'published' || data.status == 'archived')
+          && data.createdAt is string && data.createdAt.size() <= 64
+          && data.updatedAt is string && data.updatedAt.size() <= 64;
+      }
+
+      allow get: if isValidId(lessonId) && isSignedIn() && (
+        existing().teacherId == request.auth.uid
+        || isAdmin()
+        || (existing().status == 'published' && exists(/databases/$(database)/documents/enrollments/$(existing().teacherId + '_' + request.auth.uid)))
+      );
+      allow list: if isSignedIn() && (
+        resource.data.teacherId == request.auth.uid
+        || resource.data.status == 'published'
+        || isAdmin()
+      );
+      allow create: if isValidId(lessonId) && isSignedIn() && isValidTeacherLesson(incoming()) && (
+        isAdmin()
+        || (
+          incoming().teacherId == request.auth.uid
+          && exists(/databases/$(database)/documents/teacher_directory/$(request.auth.uid))
+          && get(/databases/$(database)/documents/teacher_directory/$(request.auth.uid)).data.approved == true
+        )
+      );
+      allow update: if isValidId(lessonId) && isSignedIn() && isValidTeacherLesson(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().createdAt == existing().createdAt
+        && (isAdmin() || existing().teacherId == request.auth.uid);
+      allow delete: if isValidId(lessonId) && isSignedIn() && (existing().teacherId == request.auth.uid || isAdmin());
+    }
+
+    // --- Teacher Doubts Rules (Phase 2) ---
+    match /teacher_doubts/{doubtId} {
+      function isValidTeacherDoubt(data) {
+        return data.keys().hasAll(['id', 'studentId', 'studentName', 'teacherId', 'teacherName', 'subject', 'topic', 'question', 'status', 'createdAt', 'updatedAt'])
+          && data.keys().hasOnly(['id', 'studentId', 'studentName', 'teacherId', 'teacherName', 'subject', 'topic', 'question', 'reply', 'status', 'createdAt', 'updatedAt'])
+          && data.id == doubtId
+          && isValidId(data.studentId)
+          && isValidId(data.teacherId)
+          && data.studentName is string && data.studentName.size() > 0 && data.studentName.size() <= 120
+          && data.teacherName is string && data.teacherName.size() > 0 && data.teacherName.size() <= 120
+          && data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100
+          && data.topic is string && data.topic.size() > 0 && data.topic.size() <= 200
+          && data.question is string && data.question.size() > 0 && data.question.size() <= 3000
+          && (!('reply' in data) || (data.reply is string && data.reply.size() <= 5000))
+          && (data.status == 'open' || data.status == 'answered')
+          && data.createdAt is string && data.createdAt.size() <= 64
+          && data.updatedAt is string && data.updatedAt.size() <= 64;
+      }
+
+      allow get: if isValidId(doubtId) && isSignedIn() && (existing().studentId == request.auth.uid || existing().teacherId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.teacherId == request.auth.uid || isAdmin());
+      allow create: if isValidId(doubtId) && isSignedIn() && isValidTeacherDoubt(incoming())
+        && incoming().studentId == request.auth.uid
+        && incoming().status == 'open'
+        && exists(/databases/$(database)/documents/enrollments/$(incoming().teacherId + '_' + request.auth.uid));
+      allow update: if isValidId(doubtId) && isSignedIn() && isValidTeacherDoubt(incoming())
+        && incoming().studentId == existing().studentId
+        && incoming().teacherId == existing().teacherId
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin()
+          || (existing().teacherId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['reply', 'status', 'updatedAt']))
+        );
+      allow delete: if isValidId(doubtId) && isSignedIn() && (existing().studentId == request.auth.uid || existing().teacherId == request.auth.uid || isAdmin());
+    }
+
+    // --- Community Hub Rules (Phase 3) ---
+    match /community_posts/{postId} {
+      function isValidCommunityPost(data) {
+        return data.keys().hasAll(['id', 'authorId', 'authorName', 'authorRole', 'postType', 'title', 'subject', 'grade', 'content', 'upvoterIds', 'commentsCount', 'status', 'createdAt', 'updatedAt'])
+          && data.keys().hasOnly(['id', 'authorId', 'authorName', 'authorRole', 'postType', 'title', 'subject', 'grade', 'content', 'resourceUrl', 'attachmentFileId', 'attachmentName', 'attachmentSize', 'upvoterIds', 'commentsCount', 'status', 'createdAt', 'updatedAt'])
+          && data.id == postId
+          && isValidId(data.authorId)
+          && data.authorName is string && data.authorName.size() > 0 && data.authorName.size() <= 120
+          && (data.authorRole == 'student' || data.authorRole == 'teacher' || data.authorRole == 'admin')
+          && (data.postType == 'note' || data.postType == 'resource' || data.postType == 'question')
+          && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+          && data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100
+          && data.grade is string && data.grade.size() > 0 && data.grade.size() <= 50
+          && data.content is string && data.content.size() > 0 && data.content.size() <= 20000
+          && (!('resourceUrl' in data) || (data.resourceUrl is string && data.resourceUrl.size() <= 500))
+          && (!('attachmentFileId' in data) || isValidId(data.attachmentFileId))
+          && (!('attachmentName' in data) || (data.attachmentName is string && data.attachmentName.size() > 0 && data.attachmentName.size() <= 200))
+          && (!('attachmentSize' in data) || (data.attachmentSize is number && data.attachmentSize > 0 && data.attachmentSize <= 3670016))
+          && data.upvoterIds is list && data.upvoterIds.size() <= 500
+          && data.commentsCount is number && data.commentsCount >= 0
+          && (data.status == 'published' || data.status == 'hidden')
+          && data.createdAt is string && data.createdAt.size() <= 64
+          && data.updatedAt is string && data.updatedAt.size() <= 64;
+      }
+
+      allow get: if isValidId(postId) && isSignedIn() && (existing().status == 'published' || existing().authorId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.status == 'published' || isAdmin());
+      allow create: if isValidId(postId) && isSignedIn() && isValidCommunityPost(incoming())
+        && incoming().authorId == request.auth.uid
+        && incoming().status == 'published'
+        && incoming().upvoterIds.size() == 0
+        && incoming().commentsCount == 0
+        && (
+          !('attachmentFileId' in incoming())
+          || (
+            exists(/databases/$(database)/documents/community_files/$(incoming().attachmentFileId))
+            && get(/databases/$(database)/documents/community_files/$(incoming().attachmentFileId)).data.uploaderId == request.auth.uid
+          )
+        );
+      allow update: if isValidId(postId) && isSignedIn() && isValidCommunityPost(incoming())
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin()
+          || (existing().authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'subject', 'grade', 'postType', 'content', 'resourceUrl', 'updatedAt']))
+          || (incoming().diff(existing()).affectedKeys().hasOnly(['upvoterIds', 'updatedAt']))
+          || (incoming().diff(existing()).affectedKeys().hasOnly(['commentsCount', 'updatedAt']))
+        );
+      allow delete: if isValidId(postId) && isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+
+      match /comments/{commentId} {
+        function isValidCommunityComment(data) {
+          return data.keys().hasAll(['id', 'postId', 'authorId', 'authorName', 'authorRole', 'content', 'createdAt'])
+            && data.keys().hasOnly(['id', 'postId', 'authorId', 'authorName', 'authorRole', 'content', 'createdAt'])
+            && data.id == commentId
+            && data.postId == postId
+            && isValidId(data.authorId)
+            && data.authorName is string && data.authorName.size() > 0 && data.authorName.size() <= 120
+            && (data.authorRole == 'student' || data.authorRole == 'teacher' || data.authorRole == 'admin')
+            && data.content is string && data.content.size() > 0 && data.content.size() <= 3000
+            && data.createdAt is string && data.createdAt.size() <= 64;
+        }
+
+        allow get: if isValidId(postId) && isValidId(commentId) && isSignedIn() && exists(/databases/$(database)/documents/community_posts/$(postId));
+        allow list: if isSignedIn() && resource.data.postId == postId;
+        allow create: if isValidId(postId) && isValidId(commentId) && isSignedIn() && isValidCommunityComment(incoming())
+          && incoming().authorId == request.auth.uid
+          && exists(/databases/$(database)/documents/community_posts/$(postId))
+          && get(/databases/$(database)/documents/community_posts/$(postId)).data.status == 'published';
+        allow delete: if isValidId(postId) && isValidId(commentId) && isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // --- Community PDF Attachments Rules ---
+    match /community_files/{fileId} {
+      function isValidCommunityFile(data) {
+        return data.keys().hasAll(['id', 'uploaderId', 'fileName', 'mimeType', 'sizeBytes', 'chunkCount', 'createdAt'])
+          && data.keys().hasOnly(['id', 'uploaderId', 'fileName', 'mimeType', 'sizeBytes', 'chunkCount', 'createdAt'])
+          && data.id == fileId
+          && isValidId(data.uploaderId)
+          && data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 200
+          && data.mimeType == 'application/pdf'
+          && data.sizeBytes is number && data.sizeBytes > 0 && data.sizeBytes <= 3670016
+          && data.chunkCount is number && data.chunkCount >= 1 && data.chunkCount <= 8
+          && data.createdAt is string && data.createdAt.size() <= 64;
+      }
+
+      allow get: if isValidId(fileId) && isSignedIn();
+      allow create: if isValidId(fileId) && isSignedIn() && isValidCommunityFile(incoming())
+        && incoming().uploaderId == request.auth.uid;
+      allow delete: if isValidId(fileId) && isSignedIn() && (existing().uploaderId == request.auth.uid || isAdmin());
+
+      match /chunks/{chunkIndex} {
+        function isValidFileChunk(data) {
+          return data.keys().hasAll(['fileId', 'index', 'data'])
+            && data.keys().hasOnly(['fileId', 'index', 'data'])
+            && data.fileId == fileId
+            && data.index is number && data.index >= 0 && data.index < 8
+            && data.data is string && data.data.size() > 0 && data.data.size() <= 650000;
+        }
+
+        allow get: if isValidId(fileId) && isValidId(chunkIndex) && isSignedIn()
+          && exists(/databases/$(database)/documents/community_files/$(fileId));
+        allow create: if isValidId(fileId) && isValidId(chunkIndex) && isSignedIn() && isValidFileChunk(incoming())
+          && exists(/databases/$(database)/documents/community_files/$(fileId))
+          && get(/databases/$(database)/documents/community_files/$(fileId)).data.uploaderId == request.auth.uid;
+        allow delete: if isValidId(fileId) && isValidId(chunkIndex) && isSignedIn()
+          && exists(/databases/$(database)/documents/community_files/$(fileId))
+          && (get(/databases/$(database)/documents/community_files/$(fileId)).data.uploaderId == request.auth.uid || isAdmin());
+      }
     }
 
     // --- Lesson Rules ---
@@ -49,14 +343,14 @@ service cloud.firestore {
           && (data.status == 'pending' || data.status == 'completed');
       }
 
-      allow list: if isOwner(userId);
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidLesson(incoming());
-      allow update: if isOwner(userId) && (
+      allow list: if isOwner(userId) || isAdmin();
+      allow get: if isValidId(lessonId) && (isOwner(userId) || isAdmin());
+      allow create: if isValidId(lessonId) && isOwner(userId) && isValidLesson(incoming());
+      allow update: if isValidId(lessonId) && isOwner(userId) && (
         incoming().diff(existing()).affectedKeys().hasOnly(['status'])
         || (isValidLesson(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'status', 'difficulty', 'date', 'updatedAt']))
       );
-      allow delete: if isOwner(userId);
+      allow delete: if isValidId(lessonId) && isOwner(userId);
     }
 
     // --- Quiz Rules ---
@@ -67,9 +361,10 @@ service cloud.firestore {
           && (data.type == 'daily' || data.type == 'weekly' || data.type == 'monthly' || data.type == 'lesson');
       }
 
-      allow list, get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidQuiz(incoming());
-      allow update: if isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['score', 'completed', 'completedAt']);
+      allow list: if isOwner(userId) || isAdmin();
+      allow get: if isValidId(quizId) && (isOwner(userId) || isAdmin());
+      allow create: if isValidId(quizId) && isOwner(userId) && isValidQuiz(incoming());
+      allow update: if isValidId(quizId) && isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['score', 'completed', 'completedAt']);
     }
 
     // --- Performance Rules ---
@@ -79,34 +374,60 @@ service cloud.firestore {
           && data.weakConcepts is list && data.weakConcepts.size() <= 100
           && data.masteredConcepts is list && data.masteredConcepts.size() <= 100
           && data.averageScore is number
-          && data.lastUpdated is string;
+          && data.lastUpdated is string && data.lastUpdated.size() <= 64;
       }
 
-      allow list, get: if isOwner(userId);
-      allow create, update: if isOwner(userId) && isValidPerformance(incoming());
+      allow list: if isOwner(userId) || isAdmin();
+      allow get: if subjectId is string && subjectId.size() > 0 && subjectId.size() <= 100 && (isOwner(userId) || isAdmin());
+      allow create, update: if subjectId is string && subjectId.size() > 0 && subjectId.size() <= 100 && isOwner(userId) && isValidPerformance(incoming());
     }
 
-    // --- Support Rules ---
+    // --- Legacy Per-User Support Rules ---
     match /users/{userId}/support_tickets/{ticketId} {
       function isValidTicket(data) {
         return data.message is string && data.message.size() <= 2000
           && (data.status == 'open' || data.status == 'closed')
-          && data.createdAt is string;
+          && data.createdAt is string && data.createdAt.size() <= 64;
       }
 
-      allow create: if isOwner(userId) && isValidTicket(incoming());
-      allow list, get: if isOwner(userId);
+      allow create: if isValidId(ticketId) && isOwner(userId) && isValidTicket(incoming());
+      allow list: if isOwner(userId) || isAdmin();
+      allow get: if isValidId(ticketId) && (isOwner(userId) || isAdmin());
+    }
+
+    // --- Global Support Tickets Queue ---
+    match /support_tickets/{ticketId} {
+      function isValidGlobalTicket(data) {
+        return data.keys().hasAll(['userId', 'message', 'status', 'createdAt'])
+          && data.keys().hasOnly(['userId', 'userEmail', 'message', 'status', 'createdAt'])
+          && data.userId is string && data.userId.size() <= 128
+          && (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 100))
+          && data.message is string && data.message.size() > 0 && data.message.size() <= 2000
+          && (data.status == 'open' || data.status == 'closed')
+          && data.createdAt is string && data.createdAt.size() <= 64;
+      }
+
+      allow create: if isValidId(ticketId) && isSignedIn() && isValidGlobalTicket(incoming()) && incoming().userId == request.auth.uid && incoming().status == 'open';
+      allow get: if isValidId(ticketId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isValidId(ticketId) && isAdmin() && isValidGlobalTicket(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
     }
 
     // --- Feedback Rules ---
     match /feedback/{feedbackId} {
       function isValidFeedback(data) {
-        return data.userId == request.auth.uid
+        return data.keys().hasAll(['userId', 'rating', 'feedback', 'createdAt'])
+          && data.keys().hasOnly(['userId', 'userEmail', 'rating', 'feedback', 'createdAt'])
+          && data.userId == request.auth.uid
+          && (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 100))
           && data.rating is number && data.rating >= 1 && data.rating <= 5
           && data.feedback is string && data.feedback.size() <= 5000
-          && data.createdAt is string;
+          && data.createdAt is string && data.createdAt.size() <= 64;
       }
-      allow create: if isSignedIn() && isValidFeedback(incoming());
+
+      allow create: if isValidId(feedbackId) && isSignedIn() && isValidFeedback(incoming());
+      allow get: if isValidId(feedbackId) && isAdmin();
+      allow list: if isAdmin();
     }
   }
 }

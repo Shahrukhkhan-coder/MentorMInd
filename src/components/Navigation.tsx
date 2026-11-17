@@ -1,8 +1,22 @@
 import React from 'react';
-import { LayoutDashboard, BookOpen, GraduationCap, BarChart3, Settings, LogOut, Menu, X, Info } from 'lucide-react';
+import {
+  LayoutDashboard,
+  BookOpen,
+  GraduationCap,
+  BarChart3,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  Info,
+  Users,
+  ShieldCheck,
+  Globe,
+} from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { UserRole } from '../types';
 
 interface SidebarItemProps {
   icon: React.ElementType;
@@ -27,11 +41,13 @@ const SidebarItem = ({ icon: Icon, label, isActive, onClick }: SidebarItemProps)
 );
 
 export function Sidebar({ currentView, setView }: { currentView: string; setView: (v: any) => void }) {
-  const { user, logout } = useAuth();
+  const { user, profile, isAdmin, effectiveRole, activePortal, setActivePortal, logout } = useAuth();
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const navigation = [
+  const studentNav = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'teacher-class', label: 'My Teacher', icon: Users },
+    { id: 'community', label: 'Community', icon: Globe },
     { id: 'lessons', label: 'Learning History', icon: BookOpen },
     { id: 'quizzes', label: 'Quizzes', icon: GraduationCap },
     { id: 'progress', label: 'Progress', icon: BarChart3 },
@@ -39,9 +55,37 @@ export function Sidebar({ currentView, setView }: { currentView: string; setView
     { id: 'help', label: 'Help & Docs', icon: Info },
   ];
 
+  const teacherNav = [
+    { id: 'teacher-home', label: 'Teacher Portal', icon: Users },
+    { id: 'community', label: 'Community', icon: Globe },
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'help', label: 'Help & Docs', icon: Info },
+  ];
+
+  const adminNav = [
+    { id: 'admin-home', label: 'Admin Portal', icon: ShieldCheck },
+    { id: 'community', label: 'Community', icon: Globe },
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'help', label: 'Help & Docs', icon: Info },
+  ];
+
+  const navigation =
+    activePortal === 'admin'
+      ? adminNav
+      : activePortal === 'teacher'
+      ? teacherNav
+      : studentNav;
+
+  const handlePortalSwitch = (portal: UserRole) => {
+    setActivePortal(portal);
+    if (portal === 'admin') setView('admin-home');
+    else if (portal === 'teacher') setView('teacher-home');
+    else setView('dashboard');
+    setIsOpen(false);
+  };
+
   return (
     <>
-      {/* Mobile Toggle Button (Only show when closed) */}
       {!isOpen && (
         <div className="lg:hidden fixed top-4 left-4 z-[70]">
           <button 
@@ -64,7 +108,6 @@ export function Sidebar({ currentView, setView }: { currentView: string; setView
               isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0"
             )}
           >
-            {/* Mobile Close Button (Top right of navigation) */}
             <button 
               onClick={() => setIsOpen(false)}
               className="lg:hidden absolute top-4 right-4 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
@@ -73,12 +116,32 @@ export function Sidebar({ currentView, setView }: { currentView: string; setView
             </button>
 
             {/* Logo */}
-            <div className="flex items-center gap-3 mb-10 px-2">
+            <div className="flex items-center gap-3 mb-6 px-2">
               <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
                 <GraduationCap className="text-white" size={24} />
               </div>
               <h1 className="text-xl font-bold text-slate-900 tracking-tight">MentorMind</h1>
             </div>
+
+            {/* Admin Portal Switcher */}
+            {isAdmin && (
+              <div className="mb-6 p-1.5 bg-slate-100 rounded-2xl grid grid-cols-3 gap-1">
+                {(['admin', 'teacher', 'student'] as UserRole[]).map((portal) => (
+                  <button
+                    key={portal}
+                    onClick={() => handlePortalSwitch(portal)}
+                    className={cn(
+                      "py-1.5 rounded-xl text-[11px] font-bold capitalize transition-all",
+                      activePortal === portal
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                  >
+                    {portal}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Nav Items */}
             <nav className="flex-1 space-y-2">
@@ -105,8 +168,15 @@ export function Sidebar({ currentView, setView }: { currentView: string; setView
                   alt="Avatar"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{user?.displayName}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {profile?.displayName || user?.displayName}
+                    </p>
+                  </div>
                   <p className="text-xs text-slate-400 truncate tracking-tight">{user?.email}</p>
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-wider">
+                    {effectiveRole}
+                  </span>
                 </div>
               </div>
               <button 

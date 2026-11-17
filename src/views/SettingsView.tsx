@@ -23,7 +23,22 @@ export function SettingsView({ subjectsOnly, onBack }: { subjectsOnly?: boolean;
     if (!user) return;
     setIsSaving(true);
     try {
-      await dbService.updateUserProfile(user.uid, formData);
+      const safeUpdates: Partial<UserProfile> = {
+        displayName: formData.displayName || profile?.displayName || user.displayName || '',
+        bio: formData.bio || '',
+        grade: formData.grade || 'High School',
+        subjects: formData.subjects || [],
+        goals: formData.goals || '',
+        learningMode: formData.learningMode || 'text',
+      };
+      await dbService.updateUserProfile(user.uid, safeUpdates);
+      if (profile?.role === 'teacher' && profile?.teacherStatus === 'approved') {
+        await dbService.updateTeacherDirectoryProfile(user.uid, {
+          displayName: safeUpdates.displayName || user.email?.split('@')[0] || 'Educator',
+          subjects: safeUpdates.subjects || [],
+          bio: safeUpdates.bio || '',
+        });
+      }
       await refreshProfile();
       toast.success('Settings updated successfully!');
       if (onBack) onBack();
